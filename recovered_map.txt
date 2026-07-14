@@ -1,0 +1,808 @@
+Created At: 2026-07-10T23:08:08Z
+Completed At: 2026-07-10T23:08:08Z
+File Path: `file:///C:/Users/Lemos/Documents/testantigravity/idlekingdoms/src/components/world/MapRenderer.tsx`
+Total Lines: 1442
+Total Bytes: 61762
+Showing lines 1 to 800
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: "use client";
+2: 
+3: import { useGameStore, NodeData } from "@/stores/gameStore";
+4: import { MouseEvent, useRef, useState, useEffect, useMemo, memo } from "react";
+5: import Character from "./Character";
+6: import ResourceNode from "./ResourceNode";
+7: import PlotNode from "./PlotNode";
+8: import MonsterNode from "./MonsterNode";
+9: import CityNode from "./CityNode";
+10: import CaravanNode from "./CaravanNode";
+11: import OtherPlotNode from "./OtherPlotNode";
+12: import OtherPlayerNode from "./OtherPlayerNode";
+13: import WorldBossNode from "./WorldBossNode";
+14: import { useAutomationStore } from "@/stores/automationStore";
+15: import { useInventoryStore } from "@/stores/inventoryStore";
+16: import { useHousingStore } from "@/stores/housingStore";
+17: import { useWorkerStore } from "@/stores/workerStore";
+18: import { useCombatStore } from "@/stores/combatStore";
+19: import { useMultiplayerStore } from "@/stores/multiplayerStore";
+20: import { useMarketStore } from "@/stores/marketStore";
+21: import { motion, AnimatePresence } from "framer-motion";
+22: 
+23: interface Decoration {
+24:   id: string;
+25:   x: number;
+26:   y: number;
+27:   emoji: string;
+28:   style?: React.CSSProperties;
+29:   floor: number;
+30: }
+31: 
+32: // Boundary checkers to prevent visual assets from spawning inside water bodies
+33: const isPointInLake = (x: number, y: number) => {
+34:   if (Math.hypot(x - 3800, y - 3100) < 340) return true; // East lake
+35:   if (Math.hypot(x - 1300, y - 1400) < 245) return true; // North-West lake
+36:   return false;
+37: };
+38: 
+39: const isNearRiver = (x: number, y: number, threshold = 160) => {
+40:   let rx = 3300;
+41:   if (y < 1000) {
+42:     rx = 3300 + (y / 1000) * (3200 - 3300);
+43:   } else if (y < 1600) {
+44:     rx = 3200 + ((y - 1000) / 600) * (3300 - 3200);
+45:   } else if (y < 2200) {
+46:     rx = 3300 + ((y - 1600) / 600) * (3100 - 3300);
+47:   } else if (y < 2700) {
+48:     rx = 3100 + ((y - 2200) / 500) * (2900 - 3100);
+49:   } else if (y < 3000) {
+50:     rx = 2900 + ((y - 2700) / 300) * (1700 - 2900);
+51:   } else if (y < 3600) {
+52:     rx = 1700 + ((y - 3000) / 600) * (1200 - 1700);
+53:   } else if (y < 4000) {
+54:     rx = 1200 + ((y - 3600) / 400) * (800 - 1200);
+55:   } else {
+56:     rx = 800 + ((y - 4000) / 1000) * (0 - 800);
+57:   }
+58:   return Math.abs(x - rx) < threshold;
+59: };
+60: 
+61: // Generate static visual decorations scattered around the world
+62: const generateDecorations = (): Decoration[] => {
+63:   const decs: Decoration[] = [];
+64:   let seed = 123;
+65:   const random = () => {
+66:     const x = Math.sin(seed++) * 10000;
+67:     return x - Math.floor(x);
+68:   };
+69: 
+70:   for (let i = 0; i < 750; i++) {
+71:     const x = random() * 5000;
+72:     const y = random() * 5000;
+73: 
+74:     let floorVal = 0;
+75:     if (i < 80) {
+76:       floorVal = 1; // mountain top
+77:     } else if (i < 200) {
+78:       floorVal = -1; // caverns
+79:     }
+80: 
+81:     // Exclude water bodies only on surface
+82:     if (floorVal === 0 && (isPointInLake(x, y) || isNearRiver(x, y, 75))) {
+83:       continue;
+84:     }
+85: 
+86:     // Shells near the water border
+87:     if (floorVal === 0 && (x < 350 || x > 4650 || y < 350 || y > 4650)) {
+88:       if (random() > 0.6) {
+89:         decs.push({
+90:           id: `shell-${i}`,
+91:           x,
+92:           y,
+93:           emoji: '🐚',
+94:           style: { fontSize: `${8 + random() * 8}px`, opacity: 0.6 },
+95:           floor: 0
+96:         });
+97:       }
+98:       continue;
+99:     }
+100: 
+101:     // Biome-specific foliage and environmental clutter
+102:     if ((y < 1400 && x >= 2000) || floorVal === 1) {
+103:       // Montanhas Rochosas (Snow/Rock)
+104:       const r = random();
+105:       if (r < 0.4) {
+106:         decs.push({
+107:           id: `snow-crystal-${i}`,
+108:           x,
+109:           y,
+110:           emoji: '❄️',
+111:           style: { fontSize: `${10 + random() * 8}px`, opacity: 0.7, filter: 'drop-shadow(0 0 2px white)' },
+112:           floor: floorVal
+113:         });
+114:       } else {
+115:         decs.push({
+116:           id: `mountain-pebble-${i}`,
+117:           x,
+118:           y,
+119:           emoji: '🪨',
+120:           style: { fontSize: `${12 + random() * 8}px`, filter: 'brightness(0.8) contrast(1.2)' },
+121:           floor: floorVal
+122:         });
+123:       }
+124:     } else if (x < 2000 || floorVal === -1) {
+125:       // Floresta Densa / Caverna (Moss/Mushrooms/Ferns)
+126:       const r = random();
+127:       if (r < 0.5) {
+128:         decs.push({
+129:           id: `forest-shroom-${i}`,
+130:           x,
+131:           y,
+132:           emoji: '🍄',
+133:           style: { fontSize: `${10 + random() * 8}px`, filter: 'hue-rotate(-20deg) brightness(0.95)' },
+134:           floor: floorVal
+135:         });
+136:       } else {
+137:         decs.push({
+138:           id: `forest-fern-${i}`,
+139:           x,
+140:           y,
+141:           emoji: '🌿',
+142:           style: { fontSize: `${14 + random() * 10}px`, filter: 'hue-rotate(15deg) brightness(0.7) saturate(0.8)' },
+143:           floor: floorVal
+144:         });
+145:       }
+146:     } else {
+147:       // Campos Abertos / Grassland (Flowers/Shrubs)
+148:       const r = random();
+149:       if (r < 0.3) {
+150:         decs.push({
+151:           id: `flower-pink-${i}`,
+152:           x,
+153:           y,
+154:           emoji: '🌸',
+155:           style: { fontSize: `${10 + random() * 6}px` },
+156:           floor: floorVal
+157:         });
+158:       } else if (r < 0.6) {
+159:         decs.push({
+160:           id: `flower-yellow-${i}`,
+161:           x,
+162:           y,
+163:           emoji: '🌼',
+164:           style: { fontSize: `${10 + random() * 6}px` },
+165:           floor: floorVal
+166:         });
+167:       } else {
+168:         decs.push({
+169:           id: `plains-shrub-${i}`,
+170:           x,
+171:           y,
+172:           emoji: '🌿',
+173:           style: { fontSize: `${12 + random() * 8}px`, opacity: 0.7 },
+174:           floor: floorVal
+175:         });
+176:       }
+177:     }
+178:   }
+179:   return decs;
+180: };
+181: 
+182: const staticDecorations = generateDecorations();
+183: 
+184: const clouds = [
+185:   { id: 'c1', left: '10%', top: '15%', delay: 0, duration: 70, size: '160px' },
+186:   { id: 'c2', left: '42%', top: '28%', delay: 20, duration: 90, size: '240px' },
+187:   { id: 'c3', left: '75%', top: '8%', delay: 5, duration: 80, size: '190px' },
+188:   { id: 'c4', left: '15%', top: '60%', delay: 35, duration: 110, size: '290px' },
+189:   { id: 'c5', left: '80%', top: '70%', delay: 10, duration: 85, size: '210px' },
+190: ];
+191: 
+192: export default function MapRenderer() {
+193:   const setTargetPosition = useGameStore(state => state.setTargetPosition);
+194:   const setIsMoving = useGameStore(state => state.setIsMoving);
+195:   const characterPosition = useGameStore(state => state.characterPosition);
+196:   const nodes = useGameStore(state => state.nodes);
+197:   const isSwimming = useGameStore(state => state.isSwimming);
+198:   const setIsSwimming = useGameStore(state => state.setIsSwimming);
+199:   const timeOfDay = useGameStore(state => state.timeOfDay);
+200:   const setTimeOfDay = useGameStore(state => state.setTimeOfDay);
+201:   const floatingTexts = useGameStore(state => state.floatingTexts);
+202:   const zoom = useGameStore(state => state.zoom);
+203:   const setZoom = useGameStore(state => state.setZoom);
+204:   const shakeActive = useGameStore(state => state.shakeActive);
+205:   const hp = useGameStore(state => state.hp);
+206:   const currentFloor = useGameStore(state => state.currentFloor);
+207:   const corpses = useGameStore(state => state.corpses);
+208:   const transitions = useGameStore(state => state.transitions);
+209: 
+210:   const mapRef = useRef<HTMLDivElement>(null);
+211:   
+212:   const [clickMarker, setClickMarker] = useState<{ x: number, y: number, id: number } | null>(null);
+213: 
+214:   const isActive = useAutomationStore(state => state.isActive);
+215:   const rules = useAutomationStore(state => state.rules);
+216:   const isFull = useInventoryStore(state => state.isFull);
+217:   const addItem = useInventoryStore(state => state.addItem);
+218:   const plots = useHousingStore(state => state.plots);
+219:   const buildings = useHousingStore(state => state.buildings);
+220:   const workers = useWorkerStore(state => state.workers);
+221:   const updateWorkerStatus = useWorkerStore(state => state.updateWorkerStatus);
+222:   const monsters = useCombatStore(state => state.monsters);
+223:   const players = useMultiplayerStore(state => state.players);
+224:   const otherPlots = useMultiplayerStore(state => state.plots);
+225:   const updatePlayerPositions = useMultiplayerStore(state => state.updatePlayerPositions);
+226: 
+227:   const isPointInLake = (x: number, y: number) => {
+228:     // East Lake: center (3800, 3100), radius 320
+229:     if (Math.hypot(x - 3800, y - 3100) < 320) return true;
+230:     // North-West Lake: center (1300, 1400), radius 220
+231:     if (Math.hypot(x - 1300, y - 1400) < 220) return true;
+232:     return false;
+233:   };
+234: 
+235:   // Swimming boundary checker: outer 300px border is deep water, plus irregular lakes
+236:   useEffect(() => {
+237:     const inWater = 
+238:       characterPosition.x < 300 || 
+239:       characterPosition.x > 4700 || 
+240:       characterPosition.y < 300 || 
+241:       characterPosition.y > 4700 ||
+242:       isPointInLake(characterPosition.x, characterPosition.y);
+243:     
+244:     if (inWater !== isSwimming) {
+245:       setIsSwimming(inWater);
+246:     }
+247:   }, [characterPosition.x, characterPosition.y, isSwimming, setIsSwimming]);
+248: 
+249:   // Day/Night Cycle Loop: sequential phases every 15s (day -> sunset -> night -> sunrise)
+250:   useEffect(() => {
+251:     const stages: ('day' | 'sunset' | 'night' | 'sunrise')[] = ['day', 'sunset', 'night', 'sunrise'];
+252:     const interval = setInterval(() => {
+253:       const current = useGameStore.getState().timeOfDay;
+254:       const nextIndex = (stages.indexOf(current) + 1) % stages.length;
+255:       useGameStore.getState().setTimeOfDay(stages[nextIndex]);
+256:     }, 15000);
+257: 
+258:     return () => clearInterval(interval);
+259:   }, []);
+260: 
+261:   // Listen to wheel scrolls anywhere on the map container to zoom camera (0.6x to 1.5x)
+262:   useEffect(() => {
+263:     const handleWheel = (e: WheelEvent) => {
+264:       e.preventDefault(); // Prevents default page scroll
+265:       const delta = e.deltaY > 0 ? -0.05 : 0.05;
+266:       const currentZoom = useGameStore.getState().zoom;
+267:       useGameStore.getState().setZoom(currentZoom + delta);
+268:     };
+269: 
+270:     const mapElement = mapRef.current;
+271:     if (mapElement) {
+272:       mapElement.addEventListener('wheel', handleWheel, { passive: false });
+273:     }
+274:     return () => {
+275:       if (mapElement) {
+276:         mapElement.removeEventListener('wheel', handleWheel);
+277:       }
+278:     };
+279:   }, []);
+280: 
+281:   // Market Speculation Ticker Loop (Fase 3: Bolsa de Valores)
+282:   useEffect(() => {
+283:     const tick = setInterval(() => {
+284:       useMarketStore.getState().tickMarket();
+285:     }, 10000); // Ticks every 10 seconds for dynamic feel
+286: 
+287:     return () => clearInterval(tick);
+288:   }, []);
+289: 
+290:   // Mana Regeneration & Mage Rune Crafting Loop
+291:   useEffect(() => {
+292:     const interval = setInterval(() => {
+293:       const game = useGameStore.getState();
+294:       const combat = useCombatStore.getState();
+295:       const inventory = useInventoryStore.getState();
+296:       
+297:       if (game.mana < game.maxMana) {
+298:         game.setMana(game.mana + 5);
+299:       }
+300: 
+301:       // Mage Idle Rune Crafting
+302:       if (
+303:         game.vocation === 'Mage' && 
+304:         game.gambitRuneCraftingEnabled && 
+305:         game.mana >= 100 && 
+306:         !combat.activeMonsterId
+307:       ) {
+308:         game.setMana(0);
+309:         const runeId = game.gambitRuneType === 'fire' ? 'fire_rune' : 'healing_rune';
+310:         inventory.addItem(runeId, 1);
+311:         game.addFloatingText(`+1 ${runeId === 'fire_rune' ? 'Runa de Fogo' : 'Runa de Cura'}`, game.characterPosition.x, game.characterPosition.y - 40, 'harvest');
+312:       }
+313:       
+314:     }, 1000);
+315:     return () => clearInterval(interval);
+316:   }, []);
+317: 
+318:   // Multiplayer Simulation Loop (V1.0)
+319:   useEffect(() => {
+320:     const tick = setInterval(() => {
+321:       updatePlayerPositions();
+322:     }, 100);
+323:     return () => clearInterval(tick);
+324:   }, [updatePlayerPositions]);
+325: 
+326:   // Workers Logic Loop (V0.5)
+327:   useEffect(() => {
+328:     // Record unload timestamp
+329:     const handleUnload = () => {
+330:       localStorage.setItem('kingdoms_logout_time', Date.now().toString());
+331:     };
+332:     window.addEventListener('beforeunload', handleUnload);
+333: 
+334:     const tick = setInterval(() => {
+335:       // Record heartbeat logout timestamp
+336:       localStorage.setItem('kingdoms_logout_time', Date.now().toString());
+337: 
+338:       workers.forEach(worker => {
+339:         if (worker.assignedPlotId) {
+340:           if (useInventoryStore.getState().gold >= 1) {
+341:             useInventoryStore.getState().removeGold(1);
+342:             if (worker.status !== 'working') updateWorkerStatus(worker.id, 'working');
+343:             if (!useInventoryStore.getState().isFull()) {
+344:               if (worker.type === 'lumberjack') {
+345:                 useInventoryStore.getState().addItem('wood', 1);
+346:               } else {
+347:                 useInventoryStore.getState().addItem('stone', 1);
+348:                 // Miner has a 30% chance of finding iron ore
+349:                 if (Math.random() < 0.3) {
+350:                   useInventoryStore.getState().addItem('iron_ore', 1);
+351:                 }
+352:               }
+353:             }
+354:           } else {
+355:             if (worker.status !== 'sleeping') updateWorkerStatus(worker.id, 'sleeping');
+356:           }
+357:         }
+358:       });
+359:     }, 5000);
+360: 
+361:     return () => {
+362:       clearInterval(tick);
+363:       window.removeEventListener('beforeunload', handleUnload);
+364:     };
+365:   }, [workers, updateWorkerStatus]);
+366: 
+367:   // Bot Logic Loop
+368:   useEffect(() => {
+369:     if (!isActive) return;
+370: 
+371:     const tick = setInterval(() => {
+372:       for (const rule of rules) {
+373:         let conditionMet = false;
+374:         
+375:         if (rule.condition === 'inventory_not_full' && !isFull()) conditionMet = true;
+376:         if (rule.condition === 'inventory_full' && isFull()) conditionMet = true;
+377:         if (rule.condition === 'health_low' && hp <= 30) conditionMet = true;
+378: 
+379:         if (conditionMet) {
+380:           if (rule.action === 'chop_nearest_tree') {
+381:             const trees = nodes.filter(n => (n.type === 'oak_tree' || n.type === 'pine_tree') && n.currentHealth > 0);
+382:             if (trees.length > 0) {
+383:               const target = trees[0];
+384:               setTargetPosition({ x: target.x, y: target.y + 20 });
+385:               setIsMoving(true);
+386:               setTimeout(() => {
+387:                 if (!isFull()) addItem('wood', 1);
+388:               }, 2000);
+389:             }
+390:           }
+391:           else if (rule.action === 'mine_nearest_rock') {
+392:             const rocks = nodes.filter(n => n.type === 'iron_ore' && n.currentHealth > 0);
+393:             if (rocks.length > 0) {
+394:               const target = rocks[0];
+395:               setTargetPosition({ x: target.x, y: target.y + 20 });
+396:               setIsMoving(true);
+397:               setTimeout(() => {
+398:                 if (!isFull()) addItem('stone', 1);
+399:               }, 2000);
+400:             }
+401:           }
+402:           else if (rule.action === 'go_to_city') {
+403:             // Find the closest city node or NPC camp (Arthas, Merlin, or CITY_POSITION)
+404:             const destinations = [
+405:               { name: 'Capital', x: 2500, y: 2400 },
+406:               { name: 'Arthas Camp', x: 1500, y: 2900 },
+407:               { name: 'Merlin Camp', x: 3700, y: 2200 }
+408:             ];
+409:             destinations.sort((a, b) => {
+410:               const distA = Math.hypot(a.x - characterPosition.x, a.y - characterPosition.y);
+411:               const distB = Math.hypot(b.x - characterPosition.x, b.y - characterPosition.y);
+412:               return distA - distB;
+413:             });
+414:             const nearest = destinations[0];
+415:             setTargetPosition({ x: nearest.x, y: nearest.y });
+416:             setIsMoving(true);
+417:           }
+418:           break;
+419:         }
+420:       }
+421:     }, 5000);
+422: 
+423:     return () => clearInterval(tick);
+424:   }, [isActive, rules, isFull, nodes, addItem, setTargetPosition, setIsMoving, hp, characterPosition]);
+425: 
+426:   // Stair/Hole auto-transition detector
+427:   useEffect(() => {
+428:     const transitions = useGameStore.getState().transitions;
+429:     const currentFloor = useGameStore.getState().currentFloor;
+430:     
+431:     const node = transitions.find(t => 
+432:       t.floor === currentFloor && 
+433:       Math.hypot(t.x - characterPosition.x, t.y - characterPosition.y) < 30
+434:     );
+435: 
+436:     if (node) {
+437:       if (node.type === 'stair_up' || node.type === 'stair_down' || node.type === 'hole') {
+438:         useGameStore.getState().setCurrentFloor(node.targetFloor);
+439:         useGameStore.getState().addFloatingText(`Andar ${node.targetFloor}`, characterPosition.x, characterPosition.y - 45, 'level_up');
+440:       }
+441:     }
+442:   }, [characterPosition.x, characterPosition.y]);
+443: 
+444:   // Corpse collection checker
+445:   useEffect(() => {
+446:     const corpses = useGameStore.getState().corpses;
+447:     const currentFloor = useGameStore.getState().currentFloor;
+448:     
+449:     const corpse = corpses.find(c => 
+450:       c.floor === currentFloor && 
+451:       Math.hypot(c.x - characterPosition.x, c.y - characterPosition.y) < 40
+452:     );
+453: 
+454:     if (corpse) {
+455:       const inventory = useInventoryStore.getState();
+456:       let addedAny = false;
+457:       corpse.items.forEach(item => {
+458:         inventory.addItem(item.itemId, item.quantity);
+459:         useGameStore.getState().addFloatingText(`+${item.quantity} ${item.itemId}`, characterPosition.x, characterPosition.y - 60, 'harvest');
+460:         addedAny = true;
+461:       });
+462: 
+463:       if (addedAny) {
+464:         useGameStore.getState().addFloatingText("⚔️ Corpo Recuperado!", characterPosition.x, characterPosition.y - 40, 'level_up');
+465:       }
+466: 
+467:       useGameStore.getState().removeCorpse(corpse.id);
+468:     }
+469:   }, [characterPosition.x, characterPosition.y]);
+470: 
+471:   // Idle Training Dummy Passive Tick Loop
+472:   const isTraining = useGameStore(state => state.isTraining);
+473:   useEffect(() => {
+474:     if (!isTraining) return;
+475: 
+476:     const interval = setInterval(() => {
+477:       const game = useGameStore.getState();
+478:       game.gainSkillXp('axeFighting', 1);
+479:       game.gainSkillXp('pickaxeFighting', 1);
+480:       game.gainSkillXp('swordFighting', 1);
+481:       game.gainSkillXp('shielding', 1);
+482:       game.addFloatingText("💪 +1 Training XP", characterPosition.x, characterPosition.y - 45, 'exp');
+483:     }, 1500);
+484: 
+485:     return () => clearInterval(interval);
+486:   }, [isTraining, characterPosition.x, characterPosition.y]);
+487: 
+488:   // Monster AI (Agro, Chasing, Wandering, Melee Attack engage) Loop
+489:   useEffect(() => {
+490:     const tick = setInterval(() => {
+491:       const charPos = useGameStore.getState().characterPosition;
+492:       const currentFloor = useGameStore.getState().currentFloor;
+493:       const { monsters } = useCombatStore.getState();
+494:       const activeMonsterId = useCombatStore.getState().activeMonsterId;
+495: 
+496:       const updatedMonsters = monsters.map(m => {
+497:         if (m.isDead) return m;
+498:         if (m.floor !== currentFloor) return m;
+499: 
+500:         const dist = Math.hypot(charPos.x - m.x, charPos.y - m.y);
+501:         
+502:         // 1. Check AGRO range (250px)
+503:         if (dist < 250) {
+504:           const dx = charPos.x - m.x;
+505:           const dy = charPos.y - m.y;
+506:           const angle = Math.atan2(dy, dx);
+507:           
+508:           const speed = 4;
+509:           const nextX = m.x + Math.cos(angle) * speed;
+510:           const nextY = m.y + Math.sin(angle) * speed;
+511: 
+512:           if (!isPointInLake(nextX, nextY) && !isNearRiver(nextX, nextY, 70)) {
+513:             if (dist < 50 && activeMonsterId !== m.id) {
+514:               setTimeout(() => {
+515:                 useCombatStore.getState().engageMonster(m.id);
+516:               }, 50);
+517:             }
+518: 
+519:             return {
+520:               ...m,
+521:               x: nextX,
+522:               y: nextY,
+523:               status: 'agro' as const
+524:             };
+525:           }
+526:         } 
+527:         
+528:         // 2. Idle random walk
+529:         if (Math.random() < 0.1) {
+530:           const angle = Math.random() * Math.PI * 2;
+531:           const distWalk = 20 + Math.random() * 30;
+532:           const nextX = m.x + Math.cos(angle) * distWalk;
+533:           const nextY = m.y + Math.sin(angle) * distWalk;
+534: 
+535:           const distFromSpawn = Math.hypot(nextX - m.spawnX, nextY - m.spawnY);
+536: 
+537:           if (distFromSpawn < 150 && !isPointInLake(nextX, nextY) && !isNearRiver(nextX, nextY, 70)) {
+538:             return {
+539:               ...m,
+540:               x: nextX,
+541:               y: nextY,
+542:               status: 'idle' as const
+543:             };
+544:           }
+545:         }
+546: 
+547:         return m;
+548:       });
+549: 
+550:       useCombatStore.setState({ monsters: updatedMonsters });
+551:     }, 200);
+552: 
+553:     return () => clearInterval(tick);
+554:   }, [characterPosition, currentFloor]);
+555: 
+556:   const [viewport, setViewport] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 1000, h: typeof window !== 'undefined' ? window.innerHeight : 1000 });
+557: 
+558:   useEffect(() => {
+559:     const container = mapRef.current?.parentElement;
+560:     if (!container) return;
+561:     
+562:     const observer = new ResizeObserver((entries) => {
+563:       if (entries.length > 0) {
+564:         setViewport({ 
+565:           w: entries[0].contentRect.width, 
+566:           h: entries[0].contentRect.height 
+567:         });
+568:       }
+569:     });
+570:     
+571:     observer.observe(container);
+572:     return () => observer.disconnect();
+573:   }, []);
+574: 
+575:   const handleMapClick = (e: MouseEvent<HTMLDivElement>) => {
+576:     if (!mapRef.current) return;
+577:     
+578:     // Stop training mode immediately if player moves
+579:     useGameStore.getState().setIsTraining(false);
+580:     
+581:     // Account for zoom in coordinate calculations
+582:     const translatedX = e.clientX - (viewport.w / 2);
+583:     const translatedY = e.clientY - (viewport.h / 2);
+584:     
+585:     const clickX = (translatedX / zoom) + characterPosition.x;
+586:     const clickY = (translatedY / zoom) + characterPosition.y;
+587: 
+588:     setClickMarker({ x: clickX, y: clickY, id: Date.now() });
+589:     setTargetPosition({ x: clickX, y: clickY });
+590:     setIsMoving(true);
+591:   };
+592: 
+593:   // Determine player's active biome based on coordinates
+594:   const getActiveBiome = (x: number, y: number) => {
+595:     if (y < 1400 && x >= 2000) return 'mountain';
+596:     if (x < 2000) return 'forest';
+597:     return 'grassland';
+598:   };
+599: 
+600:   const activeBiome = getActiveBiome(characterPosition.x, characterPosition.y);
+601: 
+602:   // Dynamic overlays matching the time cycle
+603:   const getOverlayClass = () => {
+604:     switch (timeOfDay) {
+605:       case 'sunset':
+606:         return 'bg-orange-700/12 mix-blend-color-burn';
+607:       case 'night':
+608:         return 'bg-[#050714]/65 mix-blend-multiply';
+609:       case 'sunrise':
+610:         return 'bg-pink-500/10 mix-blend-color-dodge';
+611:       default:
+612:         return 'bg-transparent';
+613:     }
+614:   };
+615: 
+616:   // Viewport Culling Bounds (cull elements outside of the visible screen to boost performance)
+617:   const visibleHalfW = (viewport.w / 2) / zoom;
+618:   const visibleHalfH = (viewport.h / 2) / zoom;
+619:   
+620:   const minX = characterPosition.x - visibleHalfW - 250;
+621:   const maxX = characterPosition.x + visibleHalfW + 250;
+622:   const minY = characterPosition.y - visibleHalfH - 250;
+623:   const maxY = characterPosition.y + visibleHalfH + 250;
+624: 
+625:   // Filter lists to only keep visible items on the CURRENT FLOOR using useMemo
+626:   // Grouping bounds in 200px chunks ensures culling is computed once every few steps, not every pixel frame.
+627:   const boundsKey = `${Math.round(minX / 200)}_${Math.round(maxX / 200)}_${Math.round(minY / 200)}_${Math.round(maxY / 200)}_${currentFloor}`;
+628: 
+629:   const visibleNodes = useMemo(() => {
+630:     return nodes.filter(n => n.floor === currentFloor && n.x >= minX && n.x <= maxX && n.y >= minY && n.y <= maxY);
+631:   }, [boundsKey, nodes]);
+632: 
+633:   const visibleMonsters = useMemo(() => {
+634:     return monsters.filter(m => m.floor === currentFloor && m.x >= minX && m.x <= maxX && m.y >= minY && m.y <= maxY);
+635:   }, [boundsKey, monsters]);
+636: 
+637:   const visibleDecorations = useMemo(() => {
+638:     return staticDecorations.filter(d => d.floor === currentFloor && d.x >= minX && d.x <= maxX && d.y >= minY && d.y <= maxY);
+639:   }, [boundsKey]);
+640: 
+641:   const visibleCorpses = useMemo(() => {
+642:     return corpses.filter(c => c.floor === currentFloor && c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY);
+643:   }, [boundsKey, corpses]);
+644: 
+645:   const visibleTransitions = useMemo(() => {
+646:     return transitions.filter(t => t.floor === currentFloor && t.x >= minX && t.x <= maxX && t.y >= minY && t.y <= maxY);
+647:   }, [boundsKey, transitions]);
+648: 
+649:   return (
+650:     <div className={`absolute inset-0 overflow-hidden bg-black pointer-events-none ${shakeActive ? 'animate-shake' : ''}`}>
+651:       
+652:       {/* Dynamic inline styles for clouds, shakes, god-rays & fog */}
+653:       <style dangerouslySetInnerHTML={{ __html: `
+654:         @keyframes shake {
+655:           0%, 100% { transform: translate(0, 0); }
+656:           15%, 85% { transform: translate(-3px, 2px) rotate(-0.3deg); }
+657:           30%, 70% { transform: translate(3px, -2px) rotate(0.3deg); }
+658:           45%, 55% { transform: translate(-2px, -2px) rotate(0deg); }
+659:         }
+660:         .animate-shake {
+661:           animation: shake 0.2s ease-in-out;
+662:         }
+663:         @keyframes cloudDrift {
+664:           0% { transform: translateX(-150vw); }
+665:           100% { transform: translateX(200vw); }
+666:         }
+667:         @keyframes beamPulse {
+668:           0%, 100% { opacity: 0.15; transform: scaleX(1) rotate(35deg); }
+669:           50% { opacity: 0.38; transform: scaleX(1.1) rotate(36deg); }
+670:         }
+671:         .sun-beam-1 { animation: beamPulse 8s ease-in-out infinite; }
+672:         .sun-beam-2 { animation: beamPulse 12s ease-in-out infinite; }
+673:         .sun-beam-3 { animation: beamPulse 10s ease-in-out infinite; }
+674:         @keyframes fogDrift1 {
+675:           0% { left: -400px; top: 12%; opacity: 0; }
+676:           10% { opacity: 0.8; }
+677:           90% { opacity: 0.8; }
+678:           100% { left: 100%; top: 16%; opacity: 0; }
+679:         }
+680:         @keyframes fogDrift2 {
+681:           0% { left: -500px; top: 48%; opacity: 0; }
+682:           15% { opacity: 0.6; }
+683:           85% { opacity: 0.6; }
+684:           100% { left: 100%; top: 38%; opacity: 0; }
+685:         }
+686:         @keyframes fogDrift3 {
+687:           0% { left: -450px; top: 78%; opacity: 0; }
+688:           12% { opacity: 0.7; }
+689:           88% { opacity: 0.7; }
+690:           100% { left: 100%; top: 72%; opacity: 0; }
+691:         }
+692:         @keyframes waterFlow {
+693:           0% { stroke-dashoffset: 0; }
+694:           100% { stroke-dashoffset: -300; }
+695:         }
+696:       `}} />
+697: 
+698:       {/* Viewport Ambient Biome Particles (including falling leaves & sparkling dust) */}
+699:       <BiomeParticles biome={activeBiome} />
+700: 
+701:       {/* Viewport Rolling Fog Layer */}
+702:       <RollingFog />
+703: 
+704:       {/* Sun Rays filtering through canopies (active in Grassland & Forest during Day/Sunset) */}
+705:       <SunRays show={(activeBiome === 'grassland' || activeBiome === 'forest') && (timeOfDay === 'day' || timeOfDay === 'sunset')} />
+706: 
+707:       {/* Parallax Cloud layer above view */}
+708:       <div className="absolute inset-0 pointer-events-none overflow-hidden z-40 opacity-15">
+709:         {clouds.map(c => (
+710:           <div
+711:             key={c.id}
+712:             className="absolute text-white select-none pointer-events-none font-sans font-bold"
+713:             style={{
+714:               left: c.left,
+715:               top: c.top,
+716:               fontSize: c.size,
+717:               lineHeight: 1,
+718:               animation: `cloudDrift ${c.duration}s linear infinite`,
+719:               animationDelay: `${c.delay}s`,
+720:               filter: 'blur(8px) drop-shadow(0 20px 20px rgba(0,0,0,0.1))'
+721:             }}
+722:           >
+723:             ☁️
+724:           </div>
+725:         ))}
+726:       </div>
+727: 
+728:       {/* Soft Cinematic Vignette Overlay */}
+729:       <div className="absolute inset-0 pointer-events-none z-50 shadow-[inset_0_0_90px_rgba(0,0,0,0.5)] mix-blend-multiply" />
+730: 
+731:       {/* Camera Wrapper */}
+732:       <div 
+733:         ref={mapRef}
+734:         className="absolute pointer-events-auto cursor-crosshair transition-transform duration-100 ease-linear"
+735:         style={{
+736:           width: 5000,
+737:           height: 5000,
+738:           backgroundImage: `
+739:             linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+740:             linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+741:             url('/assets/grass.png'),
+742:             radial-gradient(circle at 50% 0%, #f1f5f9 22%, #94a3b8 45%, transparent 70%), /* Montanhas Neve */
+743:             radial-gradient(circle at 15% 70%, #16a34a 25%, #14532d 50%, transparent 80%), /* Floresta Densa */
+744:             radial-gradient(circle at 80% 65%, #0284c7 20%, #075985 45%, transparent 75%), /* Lagoa Leste */
+745:             radial-gradient(circle at 50% 50%, #22c55e 30%, #15803d 60%, transparent 90%), /* Grama central */
+746:             linear-gradient(to bottom, #15803d, #14532d)
+747:           `,
+748:           backgroundSize: '40px 40px, 40px 40px, 128px 128px, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%',
+749:           backgroundBlendMode: 'normal, normal, overlay, normal, normal, normal, normal, normal',
+750:           boxShadow: 'inset 0 0 200px rgba(0,0,0,0.8), inset 0 0 350px #0c4a6e', // ocean water border
+751:           transform: `translate(${viewport.w / 2}px, ${viewport.h / 2}px) scale(${zoom}) translate(${-characterPosition.x}px, ${-characterPosition.y}px)`
+752:         }}
+753:         onClick={handleMapClick}
+754:       >
+755:         {/* Memoized Terrain Background Layer (River, Roads & Bridges) */}
+756:         {useMemo(() => (
+757:           <>
+758:             {/* =======================================================================
+759:                 LAYER 0: CHÃO / TERRENO (zIndex: 1)
+760:                 ======================================================================= */}
+761:             <div className="absolute inset-0 pointer-events-none z-[1]">
+762:               {/* Soft shadow vignette on map */}
+763:               <div className="absolute inset-0 pointer-events-none opacity-20 shadow-[inset_0_0_150px_rgba(0,0,0,0.9)]" />
+764: 
+765:               {/* Winding River (SVG Overlay) */}
+766:               <svg className="absolute inset-0 pointer-events-none w-full h-full" viewBox="0 0 5000 5000">
+767:                 <defs>
+768:                   <linearGradient id="riverGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+769:                     <stop offset="0%" stopColor="#0ea5e9" />
+770:                     <stop offset="100%" stopColor="#0284c7" />
+771:                   </linearGradient>
+772:                   <linearGradient id="mountainGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+773:                     <stop offset="0%" stopColor="#4a5568" />
+774:                     <stop offset="100%" stopColor="#1a202c" />
+775:                   </linearGradient>
+776:                   <radialGradient id="lakeGradient" cx="50%" cy="50%" r="50%">
+777:                     <stop offset="0%" stopColor="#0891b2" />
+778:                     <stop offset="70%" stopColor="#0369a1" />
+779:                     <stop offset="100%" stopColor="#075985" />
+780:                   </radialGradient>
+781:                   <filter id="shadow">
+782:                     <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.4"/>
+783:                   </filter>
+784:                   {/* Organic turbulence filters for fluid pixel-art style riverbanks and sandbanks */}
+785:                   <filter id="organic-water">
+786:                     <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="2" result="noise" seed="0">
+787:                       <animate attributeName="seed" dur="18s" from="0" to="100" repeatCount="indefinite" />
+788:                     </feTurbulence>
+789:                     <feDisplacementMap in="SourceGraphic" in2="noise" scale="22" xChannelSelector="R" yChannelSelector="G" />
+790:                   </filter>
+791:                   <filter id="organic-sand">
+792:                     <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" result="noise" seed="0">
+793:                       <animate attributeName="seed" dur="25s" from="0" to="100" repeatCount="indefinite" />
+794:                     </feTurbulence>
+795:                     <feDisplacementMap in="SourceGraphic" in2="noise" scale="14" xChannelSelector="R" yChannelSelector="G" />
+796:                   </filter>
+797:                 </defs>
+798: 
+799:                 {/* Natural River layers with SVG Displacement filter for organic pixel-art flow */}
+800:                 {/* 1. Dark green grass blend line underneath */}
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

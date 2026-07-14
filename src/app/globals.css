@@ -1,26 +1,88 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --color-fantasy-dark: #0f1115;
+  --color-fantasy-darker: #0a0b0e;
+  --color-fantasy-card: #161921;
+  --color-fantasy-card-hover: #1e222d;
+  --color-fantasy-border: #2a2e3d;
+  --color-fantasy-accent: #c49a45; /* envelhecido ouro */
+  --color-fantasy-accent-hover: #e0b65e;
+  --color-fantasy-text: #d1d5db;
+  --color-fantasy-text-muted: #9ca3af;
+  --color-fantasy-danger: #991b1b;
+  --color-fantasy-success: #166534;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-serif: "Cinzel", "Playfair Display", serif;
+  --font-sans: "Inter", "Roboto", sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  @keyframes float-up {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(-50px); opacity: 0; }
+  }
+
+  @keyframes shake {
+    0% { transform: translate(1px, 1px) rotate(0deg); }
+    10% { transform: translate(-1px, -2px) rotate(-1deg); }
+    20% { transform: translate(-3px, 0px) rotate(1deg); }
+    30% { transform: translate(3px, 2px) rotate(0deg); }
+    40% { transform: translate(1px, -1px) rotate(1deg); }
+    50% { transform: translate(-1px, 2px) rotate(-1deg); }
+    60% { transform: translate(-3px, 1px) rotate(0deg); }
+    70% { transform: translate(3px, 1px) rotate(-1deg); }
+    80% { transform: translate(-1px, -1px) rotate(1deg); }
+    90% { transform: translate(1px, 2px) rotate(0deg); }
+    100% { transform: translate(1px, -2px) rotate(-1deg); }
+  }
+
+  @keyframes fillBar {
+    0% { width: 0%; }
+    100% { width: 100%; }
+  }
+
+  @keyframes idleWind {
+    0%, 100% { transform: skewX(0deg) rotate(0deg); }
+    50% { transform: skewX(-1.5deg) rotate(0.8deg); }
+  }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-150%) skewX(-15deg); opacity: 0; }
+    30% { opacity: 1; }
+    50% { transform: translateX(150%) skewX(-15deg); opacity: 0; }
+    100% { transform: translateX(150%) skewX(-15deg); opacity: 0; }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  body {
+    background-color: var(--color-fantasy-dark);
+    color: var(--color-fantasy-text);
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+  }
+  .animate-float-up {
+    animation: float-up 1s ease-out forwards;
+  }
+  .animate-idle-wind {
+    animation: idleWind 4s ease-in-out infinite;
+    transform-origin: bottom center;
+  }
+  .animate-shimmer {
+    animation: shimmer 4s infinite linear;
+  }
+}
+
+/* Custom scrollbar para clima MMORPG */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-fantasy-darker);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-fantasy-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fantasy-accent);
 }

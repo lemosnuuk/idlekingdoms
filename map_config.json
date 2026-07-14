@@ -1,0 +1,41 @@
+{
+  "mapSize": {
+    "width": 5000,
+    "height": 5000
+  },
+  "landmarks": [
+    { "id": "giant-tree", "name": "Árvore Gigante Ancestral", "x": 1000, "y": 3200 },
+    { "id": "ruins-aethelgard", "name": "Ruínas Antigas de Aethelgard", "x": 3800, "y": 3800 },
+    { "id": "mithril-mine", "name": "Mina Lendária de Mithril", "x": 2500, "y": 900 }
+  ],
+  "capitalCity": {
+    "centerX": 2500,
+    "centerY": 2400,
+    "buildings": [
+      { "id": "castle", "name": "Castelo Real", "offsetX": -130, "offsetY": -220, "x": 2370, "y": 2180 },
+      { "id": "cabin-tavern", "name": "Taverna do Javali", "offsetX": -290, "offsetY": -40, "x": 2210, "y": 2360 },
+      { "id": "tent-market", "name": "Mercado da Vila", "offsetX": 130, "offsetY": -40, "x": 2630, "y": 2360 },
+      { "id": "cabin-forge", "name": "Forja de Bronze", "offsetX": -80, "offsetY": 70, "x": 2420, "y": 2470 }
+    ]
+  },
+  "villages": [
+    { "id": "arthas-camp", "name": "Vila de Arthas", "x": 1500, "y": 2900 },
+    { "id": "merlin-camp", "name": "Vila de Merlin", "x": 3700, "y": 2200 }
+  ],
+  "startingPlayerPlots": [
+    { "id": "p1", "x": 2150, "y": 2550, "width": 100, "height": 100, "basePrice": 50 },
+    { "id": "p2", "x": 2280, "y": 2680, "width": 100, "height": 100, "basePrice": 100 },
+    { "id": "p3", "x": 2620, "y": 2680, "width": 100, "height": 100, "basePrice": 150 },
+    { "id": "p4", "x": 2750, "y": 2550, "width": 100, "height": 100, "basePrice": 200 }
+  ],
+  "riverPath": "M 3300 0 C 3200 1000, 3300 1600, 3100 2200 C 2900 2700, 1700 3000, 1200 3600 C 800 4000, 500 4300, 0 4500",
+  "bridges": [
+    { "id": "east-bridge", "type": "Stone Arch Bridge", "x": 3100, "y": 2180 }
+  ],
+  "lampposts": [
+    { "x": 2500, "y": 2580 },
+    { "x": 1800, "y": 2600 },
+    { "x": 3100, "y": 2150 },
+    { "x": 2500, "y": 1800 }
+  ]
+}

@@ -1,0 +1,12 @@
+Created At: 2026-07-10T23:36:31Z
+Completed At: 2026-07-10T23:36:31Z
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\WorldBossNode.tsx","LineNumber":6,"LineContent":"export default function WorldBossNode() {"}
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\WorkerNode.tsx","LineNumber":7,"LineContent":"export default function WorkerNode({ worker }: { worker: WorkerData }) {"}
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\PlotNode.tsx","LineNumber":9,"LineContent":"export default function PlotNode({ plot }: { plot: PlotData }) {"}
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\OtherPlotNode.tsx","LineNumber":5,"LineContent":"export default function OtherPlotNode({ plot }: { plot: OtherPlot }) {"}
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\Minimap.tsx","LineNumber":10,"LineContent":"export default function Minimap() {"}
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\MapRenderer.tsx","LineNumber":28,"LineContent":"export default function MapRenderer() {"}
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\CityNode.tsx","LineNumber":11,"LineContent":"export default function CityNode() {"}
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\Character.tsx","LineNumber":9,"LineContent":"export default function Character() {"}
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\CaravanNode.tsx","LineNumber":12,"LineContent":"export default function CaravanNode() {"}
+{"File":"c:\\Users\\Lemos\\Documents\\testantigravity\\idlekingdoms\\src\\components\\world\\BuildingNode.tsx","LineNumber":10,"LineContent":"export default function BuildingNode({ building }: { building: BuildingData }) {"}
