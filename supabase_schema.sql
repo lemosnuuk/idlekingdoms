@@ -25,3 +25,18 @@ CREATE POLICY "Users can update own profile"
 CREATE POLICY "Users can insert own profile"
   ON player_profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
+
+-- =============================================
+-- 4. View para o Leaderboard (Ranking Global)
+-- =============================================
+CREATE OR REPLACE VIEW leaderboard_view AS
+SELECT
+  id,
+  game_state->>'playerName' as player_name,
+  COALESCE((game_state->'inventory'->>'gold')::numeric, 0) as gold
+FROM player_profiles
+WHERE game_state->>'playerName' IS NOT NULL
+ORDER BY gold DESC;
+
+-- Permitir que qualquer pessoa leia o ranking
+GRANT SELECT ON leaderboard_view TO authenticated, anon;

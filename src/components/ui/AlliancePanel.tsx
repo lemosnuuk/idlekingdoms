@@ -2,12 +2,21 @@
 
 import { useMultiplayerStore } from "@/stores/multiplayerStore";
 import { useGameStore } from "@/stores/gameStore";
+import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { X, Shield, Users, Trophy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function AlliancePanel() {
   const { isAlliancePanelOpen, toggleAlliancePanel } = useMultiplayerStore();
   const { playerName } = useGameStore();
+  const { leaderboard, loading } = useLeaderboard();
+
+  const playerRankIndex = leaderboard.findIndex(p => p.player_name === playerName);
+  const playerRank = playerRankIndex >= 0 ? playerRankIndex + 1 : '???';
+  
+  const formatGold = (amount: number) => {
+    return Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(amount) + ' G';
+  };
 
   return (
     <AnimatePresence>
@@ -60,24 +69,31 @@ export default function AlliancePanel() {
                 </h3>
                 
                 <div className="space-y-2 overflow-y-auto pr-1">
-                  <div className="flex justify-between items-center bg-indigo-950/20 border border-indigo-500/30 p-2.5 rounded shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]">
-                    <span className="text-[11px] font-bold text-yellow-500 flex items-center gap-2"><span className="text-slate-500 font-mono">#1</span> Arthas</span>
-                    <span className="text-[10px] text-slate-300 font-mono bg-black/40 px-1.5 py-0.5 rounded">1.5M G</span>
-                  </div>
-                  <div className="flex justify-between items-center bg-[#0b0b0d] border border-[#ffffff]/5 p-2.5 rounded">
-                    <span className="text-[11px] text-slate-300 flex items-center gap-2"><span className="text-slate-500 font-mono">#2</span> Merlin</span>
-                    <span className="text-[10px] text-slate-400 font-mono">980k G</span>
-                  </div>
-                  <div className="flex justify-between items-center bg-[#0b0b0d] border border-[#ffffff]/5 p-2.5 rounded">
-                    <span className="text-[11px] text-slate-300 flex items-center gap-2"><span className="text-slate-500 font-mono">#3</span> Ragnar</span>
-                    <span className="text-[10px] text-slate-400 font-mono">450k G</span>
-                  </div>
+                  {loading ? (
+                    <div className="text-center py-4 text-slate-500 text-xs font-mono animate-pulse">Carregando pergaminhos...</div>
+                  ) : leaderboard.length === 0 ? (
+                    <div className="text-center py-4 text-slate-500 text-xs font-mono">Nenhum império registrado.</div>
+                  ) : (
+                    leaderboard.slice(0, 10).map((player, index) => {
+                      const isFirst = index === 0;
+                      return (
+                        <div key={player.id} className={`flex justify-between items-center p-2.5 rounded ${isFirst ? 'bg-indigo-950/20 border border-indigo-500/30 shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]' : 'bg-[#0b0b0d] border border-[#ffffff]/5'}`}>
+                          <span className={`text-[11px] flex items-center gap-2 ${isFirst ? 'font-bold text-yellow-500' : 'text-slate-300'}`}>
+                            <span className="text-slate-500 font-mono">#{index + 1}</span> {player.player_name}
+                          </span>
+                          <span className={`text-[10px] font-mono ${isFirst ? 'text-slate-300 bg-black/40 px-1.5 py-0.5 rounded' : 'text-slate-400'}`}>
+                            {formatGold(player.gold)}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
 
                 <div className="mt-auto pt-4 border-t border-[#ffffff]/5">
                   <div className="flex justify-between items-center bg-indigo-900/10 p-3 rounded border border-indigo-500/20 shadow-inner">
-                    <span className="text-[11px] font-bold text-[#d4af37] flex items-center gap-2"><span className="text-[#d4af37]/50 font-mono">#142</span> Você ({playerName})</span>
-                    <span className="text-[11px] font-bold text-white bg-black/40 px-2 py-0.5 rounded border border-white/5">Rank S</span>
+                    <span className="text-[11px] font-bold text-[#d4af37] flex items-center gap-2"><span className="text-[#d4af37]/50 font-mono">#{playerRank}</span> Você ({playerName})</span>
+                    <span className="text-[11px] font-bold text-white bg-black/40 px-2 py-0.5 rounded border border-white/5">Rank {typeof playerRank === 'number' ? (playerRank === 1 ? 'S' : playerRank <= 3 ? 'A' : playerRank <= 10 ? 'B' : 'C') : '?'}</span>
                   </div>
                 </div>
               </div>
