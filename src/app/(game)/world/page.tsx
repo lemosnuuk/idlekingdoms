@@ -152,62 +152,28 @@ export default function WorldPage() {
       if (!charId) return;
 
       let loadedGold = 100;
-      let loadedItems: any[] = [];
       let loadedOwnedPlotIds: string[] = [];
       let loadedBuildings: any[] = [];
       let loadedWorkers: any[] = [];
-      let loadedHp = 100;
-      let loadedPos = { x: 2500, y: 2500 };
 
       if (isSupabaseConfigured) {
         try {
-          // 1. Load character data
-          const { data: charData } = await supabase
-            .from('characters')
-            .select('*')
+          // 1. Hydrate the core game state from the single JSONB source of truth
+          const { data: profile } = await supabase
+            .from('player_profiles')
+            .select('game_state')
             .eq('id', charId)
             .single();
-          
-          if (charData) {
-            loadedGold = charData.gold ?? 100;
-            loadedHp = charData.health ?? 100;
-            if (charData.location_x && charData.location_y) {
-              loadedPos = { x: charData.location_x, y: charData.location_y };
-            }
-          } else {
-            // Create character if not present
-            await supabase.from('characters').insert([
-              { id: charId, name: 'Lemos (Guest)', gold: 100, health: 100 }
-            ]);
+            
+          if (profile?.game_state) {
+            hydrateFromPayload(profile.game_state as unknown as GameStatePayload);
           }
 
-          // 2. Load inventory items
-          const { data: itemsData } = await supabase
-            .from('inventory_items')
-            .select('*')
-            .eq('character_id', charId);
-          
-          if (itemsData) {
-            loadedItems = itemsData.map(i => ({ itemId: i.item_id, quantity: i.quantity }));
-          }
-
-          // 3. Load owned plots
-          const { data: plotsData } = await supabase
-            .from('plots')
-            .select('*')
-            .eq('owner_id', charId);
-          
+          // 2. Load plots and buildings from legacy tables
+          const { data: plotsData } = await supabase.from('plots').select('*').eq('owner_id', charId);
           if (plotsData) {
             loadedOwnedPlotIds = plotsData.map(p => p.id);
-          }
-
-          // 4. Load buildings
-          if (loadedOwnedPlotIds.length > 0) {
-            const { data: buildingsData } = await supabase
-              .from('buildings')
-              .select('*')
-              .in('plot_id', loadedOwnedPlotIds);
-            
+            const { data: buildingsData } = await supabase.from('buildings').select('*').in('plot_id', loadedOwnedPlotIds);
             if (buildingsData) {
               loadedBuildings = buildingsData.map(b => ({
                 id: b.id,
@@ -216,55 +182,27 @@ export default function WorldPage() {
               }));
             }
           }
-
-          // 5. Load workers
-          const { data: workersData } = await supabase
-            .from('workers')
-            .select('*')
-            .eq('owner_id', charId);
           
-          if (workersData) {
-            loadedWorkers = workersData.map(w => ({
-              id: w.id,
-              name: w.name,
-              type: w.type,
-              assignedPlotId: w.assigned_plot_id,
-              status: w.status
-            }));
-          }
-
         } catch (err) {
           console.warn("Error loading from Supabase, falling back to LocalStorage:", err);
-          // Fallback load
-          loadedGold = parseInt(localStorage.getItem('kingdoms_gold') || '100');
-          loadedItems = JSON.parse(localStorage.getItem('kingdoms_items') || '[]');
           loadedOwnedPlotIds = JSON.parse(localStorage.getItem('kingdoms_owned_plots') || '[]');
           loadedBuildings = JSON.parse(localStorage.getItem('kingdoms_buildings') || '[]');
-          loadedWorkers = JSON.parse(localStorage.getItem('kingdoms_workers') || '[]');
-          loadedHp = parseInt(localStorage.getItem('kingdoms_hp') || '100');
-          loadedPos = JSON.parse(localStorage.getItem('kingdoms_char_pos') || '{"x": 2500, "y": 2500}');
         }
       } else {
         // Fallback load
-        loadedGold = parseInt(localStorage.getItem('kingdoms_gold') || '100');
-        loadedItems = JSON.parse(localStorage.getItem('kingdoms_items') || '[]');
         loadedOwnedPlotIds = JSON.parse(localStorage.getItem('kingdoms_owned_plots') || '[]');
         loadedBuildings = JSON.parse(localStorage.getItem('kingdoms_buildings') || '[]');
-        loadedWorkers = JSON.parse(localStorage.getItem('kingdoms_workers') || '[]');
-        loadedHp = parseInt(localStorage.getItem('kingdoms_hp') || '100');
-        loadedPos = JSON.parse(localStorage.getItem('kingdoms_char_pos') || '{"x": 2500, "y": 2500}');
       }
 
-      // Set values to state stores
-      useInventoryStore.setState({ gold: loadedGold, items: loadedItems });
-      useGameStore.setState({ hp: loadedHp, characterPosition: loadedPos });
+      // Grab values directly from hydrated stores for offline calculations
+      loadedGold = useInventoryStore.getState().gold;
+      loadedWorkers = useWorkerStore.getState().workers;
       
       const initialPlots = useHousingStore.getState().plots;
       const updatedPlots = initialPlots.map(p => 
         loadedOwnedPlotIds.includes(p.id) ? { ...p, isOwned: true } : p
       );
       useHousingStore.setState({ plots: updatedPlots, buildings: loadedBuildings });
-      useWorkerStore.setState({ workers: loadedWorkers });
 
       const loadedWaystones = JSON.parse(localStorage.getItem('kingdoms_waystones') || '{"progressByMap": {}, "unlockedMaps": []}');
       require('@/stores/waystoneStore').useWaystoneStore.setState(loadedWaystones);

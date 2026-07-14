@@ -10,6 +10,7 @@ import { useMemo } from "react";
 export default function Minimap() {
   const characterPosition = useGameStore(state => state.characterPosition);
   const currentMapId = useGameStore(state => state.currentMapId);
+  const currentFloor = useGameStore(state => state.currentFloor);
   const nodes = useGameStore(state => state.nodesByMap[currentMapId]) || [];
   const targetPosition = useGameStore(state => state.targetPosition);
   const players = useMultiplayerStore(state => state.players);
@@ -79,7 +80,7 @@ export default function Minimap() {
         {/* Render Resource Nodes (Wood/Stone) within 800px radar range */}
         {useMemo(() => {
           return nodes && nodes
-            .filter(node => Math.hypot(node.x - characterPosition.x, node.y - characterPosition.y) < 800)
+            .filter(node => Math.hypot(node.x - characterPosition.x, node.y - characterPosition.y) < 800 && node.floor === currentFloor)
             .map((node) => (
               <div
                 key={node.id}
@@ -110,7 +111,7 @@ export default function Minimap() {
 
         {/* Render Monsters */}
         {monsters.map((monster) => (
-          !monster.isDead && (
+          !monster.isDead && monster.floor === currentFloor && (
             <div
               key={monster.id}
               className="absolute w-1.5 h-1.5 rounded-full bg-red-500 -translate-x-1/2 -translate-y-1/2"
