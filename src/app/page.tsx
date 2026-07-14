@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
-import { useGameStore } from "@/stores/gameStore";
+import { useGameStore, Vocation } from "@/stores/gameStore";
 import { buildGameStateSnapshot, hydrateFromPayload, GameStatePayload } from "@/hooks/useSyncEngine";
-import { User, LogIn, Sparkles, UserPlus, Sword, Shield, Book } from "lucide-react";
+import { User, LogIn, Sparkles, UserPlus, Sword, Shield, Book, Crosshair, Wand2 } from "lucide-react";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -18,6 +18,7 @@ export default function LandingPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [vocation, setVocation] = useState<Vocation>('Knight');
 
   // Check for existing session on mount
   useEffect(() => {
@@ -62,12 +63,15 @@ export default function LandingPage() {
 
   const handlePlayAsGuest = () => {
     if (!characterName.trim()) {
-      setError("Por favor, digite o nome do seu personagem.");
+      setError('Por favor, digite um nome para seu personagem.');
       return;
     }
     
-    // Set the character name in the store
-    setPlayerName(characterName.trim());
+    useGameStore.getState().setPlayerName(characterName.trim());
+    useGameStore.getState().setVocation(vocation);
+    
+    // Fallback: save to localStorage to persist as guest
+    localStorage.setItem('kingdoms_char_id', 'guest_' + Date.now());
     
     // Redirect to the game
     router.push('/world');
@@ -118,8 +122,9 @@ export default function LandingPage() {
         return;
       }
       if (data.user) {
-        // Set name and create profile
+        // Set name, vocation and create profile
         setPlayerName(characterName.trim());
+        useGameStore.getState().setVocation(vocation);
         const payload = buildGameStateSnapshot();
         payload.playerName = characterName.trim();
         
@@ -263,6 +268,50 @@ export default function LandingPage() {
                   <p className="text-[10px] text-zinc-500 ml-1">Sua conta Supabase armazenará seu progresso na nuvem.</p>
                 )}
               </>
+            )}
+
+            {/* Vocation Selection (For Guest and Register) */}
+            {(tab === 'guest' || tab === 'register') && (
+              <div className="space-y-2 pt-1">
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold ml-1">Sua Classe</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setVocation('Knight')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${
+                      vocation === 'Knight'
+                        ? 'bg-red-950/40 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                        : 'bg-black/40 border-white/10 hover:border-white/30 text-zinc-500'
+                    }`}
+                  >
+                    <Sword size={20} className={vocation === 'Knight' ? 'text-red-400' : ''} />
+                    <span className={`text-[10px] mt-1.5 font-bold uppercase ${vocation === 'Knight' ? 'text-red-100' : ''}`}>Knight</span>
+                  </button>
+
+                  <button
+                    onClick={() => setVocation('Paladin')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${
+                      vocation === 'Paladin'
+                        ? 'bg-emerald-950/40 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                        : 'bg-black/40 border-white/10 hover:border-white/30 text-zinc-500'
+                    }`}
+                  >
+                    <Crosshair size={20} className={vocation === 'Paladin' ? 'text-emerald-400' : ''} />
+                    <span className={`text-[10px] mt-1.5 font-bold uppercase ${vocation === 'Paladin' ? 'text-emerald-100' : ''}`}>Paladin</span>
+                  </button>
+
+                  <button
+                    onClick={() => setVocation('Mage')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${
+                      vocation === 'Mage'
+                        ? 'bg-blue-950/40 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                        : 'bg-black/40 border-white/10 hover:border-white/30 text-zinc-500'
+                    }`}
+                  >
+                    <Wand2 size={20} className={vocation === 'Mage' ? 'text-blue-400' : ''} />
+                    <span className={`text-[10px] mt-1.5 font-bold uppercase ${vocation === 'Mage' ? 'text-blue-100' : ''}`}>Mage</span>
+                  </button>
+                </div>
+              </div>
             )}
 
             {error && (

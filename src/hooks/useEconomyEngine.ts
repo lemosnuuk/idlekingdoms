@@ -9,7 +9,7 @@ export const useEconomyEngine = () => {
       if (level >= 3) {
         useGameStore.getState().tickEconomy();
       }
-    }, 10000);
+    }, 15000);
 
     return () => clearInterval(economyInterval);
   }, []);

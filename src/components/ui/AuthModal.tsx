@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Mail, KeyRound, Sparkles, LogIn, UserPlus, Wand2 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { buildGameStateSnapshot, hydrateFromPayload, GameStatePayload } from "@/hooks/useSyncEngine";
+import { useGameStore, Vocation } from "@/stores/gameStore";
+import { Sword, Shield, Crosshair } from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -22,6 +24,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [success, setSuccess] = useState<string | null>(null);
   const [showMergePrompt, setShowMergePrompt] = useState(false);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [vocation, setVocation] = useState<Vocation>('Knight');
 
   const resetForm = () => {
     setEmail('');
@@ -77,6 +80,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
 
     if (data.user) {
+      useGameStore.getState().setVocation(vocation);
       // Create profile row
       await supabase.from('player_profiles').upsert({
         id: data.user.id,
@@ -296,6 +300,55 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                       />
                     </div>
                   </div>
+
+                  {/* Vocation Selection (Only on Register) */}
+                  {tab === 'register' && (
+                    <div className="space-y-2 pt-2">
+                      <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Escolha sua Classe</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          onClick={() => setVocation('Knight')}
+                          className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${
+                            vocation === 'Knight'
+                              ? 'bg-red-950/40 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                              : 'bg-black/40 border-white/10 hover:border-white/30 text-zinc-500'
+                          }`}
+                        >
+                          <Sword size={20} className={vocation === 'Knight' ? 'text-red-400' : ''} />
+                          <span className={`text-[10px] mt-1.5 font-bold uppercase ${vocation === 'Knight' ? 'text-red-100' : ''}`}>Knight</span>
+                        </button>
+
+                        <button
+                          onClick={() => setVocation('Paladin')}
+                          className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${
+                            vocation === 'Paladin'
+                              ? 'bg-emerald-950/40 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                              : 'bg-black/40 border-white/10 hover:border-white/30 text-zinc-500'
+                          }`}
+                        >
+                          <Crosshair size={20} className={vocation === 'Paladin' ? 'text-emerald-400' : ''} />
+                          <span className={`text-[10px] mt-1.5 font-bold uppercase ${vocation === 'Paladin' ? 'text-emerald-100' : ''}`}>Paladin</span>
+                        </button>
+
+                        <button
+                          onClick={() => setVocation('Mage')}
+                          className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${
+                            vocation === 'Mage'
+                              ? 'bg-blue-950/40 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                              : 'bg-black/40 border-white/10 hover:border-white/30 text-zinc-500'
+                          }`}
+                        >
+                          <Wand2 size={20} className={vocation === 'Mage' ? 'text-blue-400' : ''} />
+                          <span className={`text-[10px] mt-1.5 font-bold uppercase ${vocation === 'Mage' ? 'text-blue-100' : ''}`}>Mage</span>
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-zinc-500 text-center mt-1">
+                        {vocation === 'Knight' && 'Mestres do combate corpo a corpo (Sword & Axe).'}
+                        {vocation === 'Paladin' && 'Especialistas em combate à distância (Distance).'}
+                        {vocation === 'Mage' && 'Manipuladores de energia arcana (Magic Level).'}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Error / Success */}
                   {error && (

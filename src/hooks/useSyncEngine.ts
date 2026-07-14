@@ -2,6 +2,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '@/stores/gameStore';
 import { useInventoryStore } from '@/stores/inventoryStore';
 import { useAutomationStore } from '@/stores/automationStore';
+import { useWorkerStore } from '@/stores/workerStore';
+import { useQuestStore } from '@/stores/questStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 // ─── Types ──────────────────────────────────────────────────
@@ -23,6 +25,8 @@ export interface GameStatePayload {
   gambitExoriEnabled: boolean;
   equipmentInventory: any[];
   timeOfDay: string;
+  workers: any[];
+  quests: any;
 }
 
 // ─── Snapshot Builder ───────────────────────────────────────
@@ -32,6 +36,8 @@ export function buildGameStateSnapshot(): GameStatePayload {
   const game = useGameStore.getState();
   const inv = useInventoryStore.getState();
   const auto = useAutomationStore.getState();
+  const worker = useWorkerStore.getState();
+  const quest = useQuestStore.getState();
 
   return {
     playerName: game.playerName,
@@ -50,6 +56,8 @@ export function buildGameStateSnapshot(): GameStatePayload {
     gambitExoriEnabled: game.gambitExoriEnabled,
     equipmentInventory: game.inventory,
     timeOfDay: game.timeOfDay,
+    workers: worker.workers,
+    quests: { quests: quest.quests, currentQuestIndex: quest.currentQuestIndex },
   };
 }
 
@@ -91,6 +99,19 @@ export function hydrateFromPayload(payload: GameStatePayload) {
     useAutomationStore.setState({
       rules: payload.automation.rules || [],
       isActive: payload.automation.isActive ?? false,
+    });
+  }
+
+  // Worker Store
+  if (payload.workers) {
+    useWorkerStore.setState({ workers: payload.workers });
+  }
+
+  // Quest Store
+  if (payload.quests) {
+    useQuestStore.setState({
+      quests: payload.quests.quests || [],
+      currentQuestIndex: payload.quests.currentQuestIndex || 0,
     });
   }
 }
@@ -184,12 +205,20 @@ export function useSyncEngine(): SyncStatus {
     const unsubAuto = useAutomationStore.subscribe(() => {
       if (userIdRef.current) scheduleSave();
     });
+    const unsubWorker = useWorkerStore.subscribe(() => {
+      if (userIdRef.current) scheduleSave();
+    });
+    const unsubQuest = useQuestStore.subscribe(() => {
+      if (userIdRef.current) scheduleSave();
+    });
 
     return () => {
       authSub.unsubscribe();
       unsubGame();
       unsubInv();
       unsubAuto();
+      unsubWorker();
+      unsubQuest();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [scheduleSave]);

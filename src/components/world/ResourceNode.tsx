@@ -96,38 +96,65 @@ export default memo(function ResourceNode({ node }: { node: NodeData }) {
       const latestMapId = latestGameStore.currentMapId;
       const latestNodes = latestGameStore.nodesByMap[latestMapId] || [];
       const latestNode = latestNodes.find(n => n.id === node.id);
-      const currentFull = useInventoryStore.getState().isFull();
-      
-      if (!currentFull && latestNode && latestNode.currentHealth > 0) {
-        addItem(isTree ? 'wood' : 'stone', 1);
-        
-        // Track achievement
-        const game = useGameStore.getState();
-        game.updateAchievement('manualCollects', game.achievements.manualCollects + 1);
-
-        // Dynamic Tibia skills progression
-        if (isTree) {
-          game.gainSkillXp('axeFighting', 1);
-          const axeLvl = game.skills.axeFighting.level;
-          const damage = Math.floor(25 * (1 + (axeLvl - 10) * 0.05));
+      if (isDummy) {
+        if (latestNode && latestNode.currentHealth > 0) {
+          const game = useGameStore.getState();
+          const voc = game.vocation;
+          
+          let skill: keyof typeof game.skills = 'swordFighting';
+          if (voc === 'Mage') skill = 'magicLevel';
+          else if (voc === 'Paladin') skill = 'distanceFighting';
+          
+          game.gainSkillXp(skill, 2);
+          
+          const lvl = game.skills[skill].level;
+          const damage = Math.floor(10 * (1 + (lvl - 10) * 0.05));
           damageNode(node.id, damage);
-        } else {
-          game.gainSkillXp('pickaxeFighting', 1);
-          const pickLvl = game.skills.pickaxeFighting.level;
-          const damage = Math.floor(25 * (1 + (pickLvl - 10) * 0.05));
-          damageNode(node.id, damage);
+          
+          useGameStore.getState().addFloatingText(
+            "⚔️ Treinando...", 
+            node.x, 
+            node.y - 45, 
+            'exp'
+          );
+          
+          if (latestNode.currentHealth <= 25) {
+            useGameStore.getState().triggerShake();
+          }
         }
-        
-        // Spawn floating harvest text feedback directly above the character
-        useGameStore.getState().addFloatingText(
-          isTree ? "+1 🪵 Madeira" : "+1 🪨 Ferro", 
-          node.x, 
-          node.y - 45, 
-          'harvest'
-        );
+      } else {
+        const currentFull = useInventoryStore.getState().isFull();
+        if (!currentFull && latestNode && latestNode.currentHealth > 0) {
+          addItem(isTree ? 'wood' : 'stone', 1);
+          
+          // Track achievement
+          const game = useGameStore.getState();
+          game.updateAchievement('manualCollects', game.achievements.manualCollects + 1);
 
-        if (latestNode.currentHealth <= 25) {
-          useGameStore.getState().triggerShake();
+          // Dynamic Tibia skills progression
+          if (isTree) {
+            game.gainSkillXp('axeFighting', 1);
+            const axeLvl = game.skills.axeFighting.level;
+            const damage = Math.floor(25 * (1 + (axeLvl - 10) * 0.05));
+            damageNode(node.id, damage);
+          } else {
+            game.gainSkillXp('pickaxeFighting', 1);
+            const pickLvl = game.skills.pickaxeFighting.level;
+            const damage = Math.floor(25 * (1 + (pickLvl - 10) * 0.05));
+            damageNode(node.id, damage);
+          }
+          
+          // Spawn floating harvest text feedback directly above the character
+          useGameStore.getState().addFloatingText(
+            isTree ? "+1 🪵 Madeira" : "+1 🪨 Ferro", 
+            node.x, 
+            node.y - 45, 
+            'harvest'
+          );
+
+          if (latestNode.currentHealth <= 25) {
+            useGameStore.getState().triggerShake();
+          }
         }
       }
       
