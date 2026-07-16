@@ -50,12 +50,20 @@ export interface MarketState {
   } | null;
 }
 
+export type WorkerRarity = 'common' | 'rare' | 'legendary';
+
 export interface Worker {
   id: string;
   name: string;
   type: 'lumberjack' | 'miner';
   salaryPerSecond: number;
   resourcePerSecond: number;
+  level: number;
+  xp: number;
+  xpToNextLevel: number;
+  efficiency: number;
+  speed: number;
+  rarity: WorkerRarity;
 }
 
 export interface Corpse {

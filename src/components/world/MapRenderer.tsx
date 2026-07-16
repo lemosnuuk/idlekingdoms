@@ -10,6 +10,7 @@ import { useCombatStore } from "@/stores/combatStore";
 import { useHousingStore } from "@/stores/housingStore";
 import { useMultiplayerStore } from "@/stores/multiplayerStore";
 import { useLogisticsStore } from "@/stores/logisticsStore";
+import { useLandStore } from "@/stores/landStore";
 
 // NODES
 import Character from "./Character";
@@ -25,6 +26,7 @@ import FloatingTextEngine from "./FloatingTextEngine";
 import WaystoneNode from "./WaystoneNode";
 import { PortalBarrier } from './PortalBarrier';
 import NPCNode from "./NPCNode";
+import LandPlotNode from "./LandPlotNode";
 
 // ENGINE
 import { useIdleFishingEngine } from "@/hooks/useIdleFishingEngine";
@@ -81,6 +83,7 @@ export default function MapRenderer() {
   const plots = useHousingStore(state => state.plots);
   const otherPlayers = useMultiplayerStore(state => state.players);
   const otherPlots = useMultiplayerStore(state => state.plots);
+  const landPlots = useLandStore(state => state.plots);
 
   // VIEWPORT
   const [viewport, setViewport] = useState({ w: 1000, h: 1000 });
@@ -150,6 +153,7 @@ export default function MapRenderer() {
   const visibleOtherPlayers = useMemo(() => otherPlayers.filter((p: any) => isVisible(p.x, p.y, 0)), [otherPlayers, position, minX, maxX, minY, maxY]);
   const visibleHoles = useMemo(() => holes.filter(h => isVisible(h.x, h.y, h.z)), [holes, position, minX, maxX, minY, maxY]);
   const visibleNPCs = useMemo(() => npcs.filter((n: any) => isVisible(n.x, n.y, n.floor)), [npcs, position, minX, maxX, minY, maxY]);
+  const visibleLandPlots = useMemo(() => landPlots.filter(lp => isVisible(lp.x, lp.y, 0)), [landPlots, position, minX, maxX, minY, maxY]);
 
   // FISHING SPOTS
   const fishingSpots = useMemo(() => [
@@ -357,6 +361,10 @@ export default function MapRenderer() {
         {/* Nodes passivos/outros */}
         {visibleOtherPlots.map((plot: any) => (
           <div key={plot.id} style={{ position: 'absolute', left: 0, top: 0, zIndex: Math.floor(plot.y) }}><OtherPlotNode plot={plot} /></div>
+        ))}
+        {/* Land Plots (New System) */}
+        {visibleLandPlots.map((lp) => (
+          <div key={lp.id} style={{ position: 'absolute', left: 0, top: 0, zIndex: Math.floor(lp.y) }}><LandPlotNode plot={lp} /></div>
         ))}
         {visiblePlots.map((plot: any) => (
           <div key={plot.id} style={{ position: 'absolute', left: 0, top: 0, zIndex: Math.floor(plot.y) }}><PlotNode plot={plot} /></div>

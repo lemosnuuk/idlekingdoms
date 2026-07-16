@@ -2,8 +2,9 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '@/stores/gameStore';
 import { useInventoryStore } from '@/stores/inventoryStore';
 import { useAutomationStore } from '@/stores/automationStore';
-import { useWorkerStore } from '@/stores/workerStore';
+import { useWorkerStore, WorkerData } from '@/stores/workerStore';
 import { useQuestStore } from '@/stores/questStore';
+import { useLandStore, LandPlot } from '@/stores/landStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 // ─── Types ──────────────────────────────────────────────────
@@ -25,8 +26,9 @@ export interface GameStatePayload {
   gambitExoriEnabled: boolean;
   equipmentInventory: any[];
   timeOfDay: string;
-  workers: any[];
+  workers: WorkerData[];
   quests: any;
+  landPlots: LandPlot[];
 }
 
 // ─── Snapshot Builder ───────────────────────────────────────
@@ -38,6 +40,7 @@ export function buildGameStateSnapshot(): GameStatePayload {
   const auto = useAutomationStore.getState();
   const worker = useWorkerStore.getState();
   const quest = useQuestStore.getState();
+  const land = useLandStore.getState();
 
   return {
     playerName: game.playerName,
@@ -58,6 +61,7 @@ export function buildGameStateSnapshot(): GameStatePayload {
     timeOfDay: game.timeOfDay,
     workers: worker.workers,
     quests: { quests: quest.quests, currentQuestIndex: quest.currentQuestIndex },
+    landPlots: land.plots,
   };
 }
 
@@ -102,9 +106,18 @@ export function hydrateFromPayload(payload: GameStatePayload) {
     });
   }
 
-  // Worker Store
+  // Worker Store — with backward-compatible migration for legacy workers
   if (payload.workers) {
-    useWorkerStore.setState({ workers: payload.workers });
+    const migratedWorkers: WorkerData[] = payload.workers.map((w: any) => ({
+      ...w,
+      level: w.level ?? 1,
+      xp: w.xp ?? 0,
+      xpToNextLevel: w.xpToNextLevel ?? 100,
+      efficiency: w.efficiency ?? 1.0,
+      speed: w.speed ?? 10000,
+      rarity: w.rarity ?? 'common',
+    }));
+    useWorkerStore.setState({ workers: migratedWorkers });
   }
 
   // Quest Store
@@ -113,6 +126,23 @@ export function hydrateFromPayload(payload: GameStatePayload) {
       quests: payload.quests.quests || [],
       currentQuestIndex: payload.quests.currentQuestIndex || 0,
     });
+  }
+
+  // Land Store — merge saved unlock/assignment state onto default plot positions
+  if (payload.landPlots && Array.isArray(payload.landPlots)) {
+    const currentPlots = useLandStore.getState().plots;
+    const mergedPlots = currentPlots.map(defaultPlot => {
+      const saved = payload.landPlots.find((sp: any) => sp.id === defaultPlot.id);
+      if (saved) {
+        return {
+          ...defaultPlot,
+          isUnlocked: saved.isUnlocked ?? false,
+          assignedWorkerId: saved.assignedWorkerId ?? null,
+        };
+      }
+      return defaultPlot;
+    });
+    useLandStore.setState({ plots: mergedPlots });
   }
 }
 
@@ -211,6 +241,9 @@ export function useSyncEngine(): SyncStatus {
     const unsubQuest = useQuestStore.subscribe(() => {
       if (userIdRef.current) scheduleSave();
     });
+    const unsubLand = useLandStore.subscribe(() => {
+      if (userIdRef.current) scheduleSave();
+    });
 
     return () => {
       authSub.unsubscribe();
@@ -219,6 +252,7 @@ export function useSyncEngine(): SyncStatus {
       unsubAuto();
       unsubWorker();
       unsubQuest();
+      unsubLand();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [scheduleSave]);

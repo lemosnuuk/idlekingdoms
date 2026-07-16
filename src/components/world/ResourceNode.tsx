@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { useGameStore, NodeData } from "@/stores/gameStore";
-import { useInventoryStore } from "@/stores/inventoryStore";
 import { useEffect, useState, memo } from "react";
 
 interface ResourceNodeProps {
@@ -26,7 +25,6 @@ interface Branch {
 
 export default memo(function ResourceNode({ node }: { node: NodeData }) {
   const { setTargetPosition, setIsMoving, damageNode } = useGameStore();
-  const { addItem, isFull } = useInventoryStore();
 
   const isTree = node.type === 'oak_tree' || node.type === 'pine_tree';
   const isDummy = node.type === 'training_dummy';
@@ -88,15 +86,17 @@ export default memo(function ResourceNode({ node }: { node: NodeData }) {
     e.stopPropagation();
     if (isDepleted) return;
     
-    setTargetPosition({ x: node.x, y: node.y + 20 });
-    setIsMoving(true);
+    if (isDummy) {
+      // Dummy: Walk to it and train (XP only, no resource drops)
+      setTargetPosition({ x: node.x, y: node.y + 20 });
+      setIsMoving(true);
 
-    setTimeout(() => {
-      const latestGameStore = useGameStore.getState();
-      const latestMapId = latestGameStore.currentMapId;
-      const latestNodes = latestGameStore.nodesByMap[latestMapId] || [];
-      const latestNode = latestNodes.find(n => n.id === node.id);
-      if (isDummy) {
+      setTimeout(() => {
+        const latestGameStore = useGameStore.getState();
+        const latestMapId = latestGameStore.currentMapId;
+        const latestNodes = latestGameStore.nodesByMap[latestMapId] || [];
+        const latestNode = latestNodes.find(n => n.id === node.id);
+
         if (latestNode && latestNode.currentHealth > 0) {
           const game = useGameStore.getState();
           const voc = game.vocation;
@@ -122,45 +122,18 @@ export default memo(function ResourceNode({ node }: { node: NodeData }) {
             useGameStore.getState().triggerShake();
           }
         }
-      } else {
-        const currentFull = useInventoryStore.getState().isFull();
-        if (!currentFull && latestNode && latestNode.currentHealth > 0) {
-          addItem(isTree ? 'wood' : 'stone', 1);
-          
-          // Track achievement
-          const game = useGameStore.getState();
-          game.updateAchievement('manualCollects', game.achievements.manualCollects + 1);
 
-          // Dynamic Tibia skills progression
-          if (isTree) {
-            game.gainSkillXp('axeFighting', 1);
-            const axeLvl = game.skills.axeFighting.level;
-            const damage = Math.floor(25 * (1 + (axeLvl - 10) * 0.05));
-            damageNode(node.id, damage);
-          } else {
-            game.gainSkillXp('pickaxeFighting', 1);
-            const pickLvl = game.skills.pickaxeFighting.level;
-            const damage = Math.floor(25 * (1 + (pickLvl - 10) * 0.05));
-            damageNode(node.id, damage);
-          }
-          
-          // Spawn floating harvest text feedback directly above the character
-          useGameStore.getState().addFloatingText(
-            isTree ? "+1 🪵 Madeira" : "+1 🪨 Ferro", 
-            node.x, 
-            node.y - 45, 
-            'harvest'
-          );
-
-          if (latestNode.currentHealth <= 25) {
-            useGameStore.getState().triggerShake();
-          }
-        }
-      }
-      
-      // GARANTIA: Destravar engine no fim da ação manual
-      useGameStore.getState().setIsMoving(false);
-    }, 2000);
+        useGameStore.getState().setIsMoving(false);
+      }, 2000);
+    } else {
+      // Trees / Ores: Manual collection removed — show informative message
+      useGameStore.getState().addFloatingText(
+        "⛏️ Trabalhadores coletam automaticamente", 
+        node.x, 
+        node.y - 45, 
+        'harvest'
+      );
+    }
   };
 
   const getNodeFilters = () => {
@@ -336,7 +309,9 @@ export default memo(function ResourceNode({ node }: { node: NodeData }) {
             <span className="text-[10px] text-white font-serif font-bold uppercase tracking-widest whitespace-nowrap">
               {isTree ? 'Madeira Bruta' : isDummy ? 'Boneco de Treino' : 'Minério de Ferro'}
             </span>
-            <span className="text-[8px] text-zinc-400 font-sans mt-0.5 whitespace-nowrap">Clique para coletar</span>
+            <span className="text-[8px] text-zinc-400 font-sans mt-0.5 whitespace-nowrap">
+              {isDummy ? 'Clique para treinar' : 'Coleta Passiva'}
+            </span>
           </div>
         )}
 

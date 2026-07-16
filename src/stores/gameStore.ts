@@ -912,22 +912,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     const invStore = require('@/stores/inventoryStore').useInventoryStore.getState();
     const mapRegistry = require('@/engine/WorldMapDirector').MapRegistry;
     
-    const activeWorkers = workerStore.workers.filter((w: any) => w.status === 'working');
+    const activeWorkers = workerStore.workers.filter((w: any) => w.status === 'working' && w.assignedPlotId);
     if (activeWorkers.length === 0) return state;
 
     // Fixed tick assumptions: 10s tick = 1 gold salary per worker
     const SALARY_PER_WORKER = 1; 
-    const baseWoodProduction = 1; // per tick
-    const baseStoneProduction = 1; // per tick
+    const GLOBAL_TICK_MS = 10000; // The economy loop interval
     
     const eficiencia = 1 - (state.crownTaxRate / 100);
     const totalSalarios = activeWorkers.length * SALARY_PER_WORKER;
     const ouroTributado = Math.floor(totalSalarios * (state.crownTaxRate / 100));
 
-    // Calculate resources from non-rebelling workers
+    // Calculate resources from non-rebelling workers using their individual efficiency & speed
     const generatedResources: Record<string, number> = { wood: 0, stone: 0 };
     const nextAlerts: Record<string, boolean> = {};
     const isBankrupt = invStore.gold <= 0;
+    const producingWorkerIds: string[] = [];
     
     activeWorkers.forEach((w: any) => {
       if (w.isRebelling) return; // Rebelling workers produce nothing
@@ -942,14 +942,27 @@ export const useGameStore = create<GameState>((set, get) => ({
       
       const nativeResources = mapRegistry[mapId]?.nativeResources || { lumberjack: 'wood', miner: 'stone' };
 
+      // Use worker efficiency as multiplier; normalize speed against global tick
+      const workerEfficiency = w.efficiency ?? 1.0;
+      const workerSpeed = w.speed ?? GLOBAL_TICK_MS;
+      const speedFactor = GLOBAL_TICK_MS / workerSpeed; // Faster workers produce more per global tick
+      const production = workerEfficiency * speedFactor * eficiencia;
+
       if (w.type === 'lumberjack') {
         const item = nativeResources.lumberjack;
-        generatedResources[item] = (generatedResources[item] || 0) + (baseWoodProduction * eficiencia);
+        generatedResources[item] = (generatedResources[item] || 0) + production;
       }
       if (w.type === 'miner') {
         const item = nativeResources.miner;
-        generatedResources[item] = (generatedResources[item] || 0) + (baseStoneProduction * eficiencia);
+        generatedResources[item] = (generatedResources[item] || 0) + production;
       }
+
+      producingWorkerIds.push(w.id);
+    });
+
+    // Grant XP to all producing workers
+    producingWorkerIds.forEach((id: string) => {
+      workerStore.gainWorkerXp(id, 1);
     });
 
     // Peasant Revolt Logic

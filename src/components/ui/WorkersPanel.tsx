@@ -1,10 +1,10 @@
 "use client";
 
-import { useWorkerStore } from "@/stores/workerStore";
+import { useWorkerStore, WorkerRarity } from "@/stores/workerStore";
 import { useHousingStore } from "@/stores/housingStore";
 import { useInventoryStore } from "@/stores/inventoryStore";
 import { useMarketStore } from "@/stores/marketStore";
-import { X, Users, TreePine, Diamond, Coins, Tent, ChevronDown, AlertTriangle, Package, Truck, ArrowRight } from "lucide-react";
+import { X, Users, TreePine, Diamond, Coins, Tent, ChevronDown, AlertTriangle, Package, Truck, ArrowRight, Star, Zap, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 
@@ -47,6 +47,52 @@ function CustomSelect({ value, options, onChange, placeholder }: { value: string
   );
 }
 
+// ─── Rarity Helpers ─────────────────────────────────────────
+
+function getRarityConfig(rarity: WorkerRarity) {
+  switch (rarity) {
+    case 'legendary':
+      return {
+        label: 'Lendário',
+        color: 'text-amber-400',
+        bgColor: 'bg-amber-950/40',
+        borderColor: 'border-amber-500/60',
+        glowClass: 'shadow-[0_0_12px_rgba(245,158,11,0.35)]',
+        badgeBg: 'bg-gradient-to-r from-amber-600 to-yellow-500',
+        badgeText: 'text-black',
+        icon: '👑',
+      };
+    case 'rare':
+      return {
+        label: 'Raro',
+        color: 'text-violet-400',
+        bgColor: 'bg-violet-950/30',
+        borderColor: 'border-violet-500/40',
+        glowClass: '',
+        badgeBg: 'bg-gradient-to-r from-violet-600 to-purple-500',
+        badgeText: 'text-white',
+        icon: '💎',
+      };
+    case 'common':
+    default:
+      return {
+        label: 'Comum',
+        color: 'text-slate-400',
+        bgColor: 'bg-slate-900/30',
+        borderColor: 'border-slate-700/40',
+        glowClass: '',
+        badgeBg: 'bg-slate-700',
+        badgeText: 'text-slate-300',
+        icon: '⚒️',
+      };
+  }
+}
+
+const HIRE_COSTS: Record<'lumberjack' | 'miner', number> = {
+  lumberjack: 50,
+  miner: 75,
+};
+
 export default function WorkersPanel() {
   const { workers, isOpen, toggleWorkers, hireWorker, assignWorker } = useWorkerStore();
   const { gold, removeGold, getQuantity, removeItem, addGold } = useInventoryStore();
@@ -55,6 +101,7 @@ export default function WorkersPanel() {
   const [caravanActive, setCaravanActive] = useState(false);
   const [caravanTimer, setCaravanTimer] = useState(0); // 30s
   const [caravanLoad, setCaravanLoad] = useState({ wood: 0, stone: 0, iron_ore: 0 });
+  const [lastHiredRarity, setLastHiredRarity] = useState<WorkerRarity | null>(null);
 
   // Caravan Simulation Loop
   useEffect(() => {
@@ -79,10 +126,23 @@ export default function WorkersPanel() {
     return () => clearInterval(interval);
   }, [caravanActive, caravanTimer, caravanLoad, addGold]);
 
-  const handleHire = (type: 'lumberjack' | 'miner', cost: number) => {
+  // Auto-clear rarity flash after 3s
+  useEffect(() => {
+    if (lastHiredRarity) {
+      const t = setTimeout(() => setLastHiredRarity(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [lastHiredRarity]);
+
+  const handleHire = (type: 'lumberjack' | 'miner') => {
+    const cost = HIRE_COSTS[type];
     if (gold >= cost) {
       removeGold(cost);
       hireWorker(type);
+      // Flash the rarity of the last hired worker
+      const latestWorkers = useWorkerStore.getState().workers;
+      const newest = latestWorkers[latestWorkers.length - 1];
+      if (newest) setLastHiredRarity(newest.rarity);
     } else {
       alert("Ouro insuficiente para contratar!");
     }
@@ -119,13 +179,17 @@ export default function WorkersPanel() {
   };
 
   const availablePlotsOptions = getAvailablePlots();
-  const assignedWorkers = workers.filter(w => w.assignedPlotId);
-  const lumberjacksCount = assignedWorkers.filter(w => w.type === 'lumberjack').length;
-  const minersCount = assignedWorkers.filter(w => w.type === 'miner').length;
+  const assignedWorkers = workers.filter(w => w.assignedPlotId || w.status === 'working');
+  const lumberjacks = workers.filter(w => w.type === 'lumberjack' && w.status === 'working');
+  const miners = workers.filter(w => w.type === 'miner' && w.status === 'working');
 
-  const goldSpentPerSec = (assignedWorkers.length / 5).toFixed(1);
-  const woodGenPerSec = (lumberjacksCount / 5).toFixed(1);
-  const stoneGenPerSec = (minersCount / 5).toFixed(1);
+  // Calculate estimated production from actual worker efficiency
+  const GLOBAL_TICK_S = 10;
+  const totalWoodPerTick = lumberjacks.reduce((sum, w) => sum + w.efficiency * (10000 / w.speed), 0);
+  const totalStonePerTick = miners.reduce((sum, w) => sum + w.efficiency * (10000 / w.speed), 0);
+  const woodGenPerSec = (totalWoodPerTick / GLOBAL_TICK_S).toFixed(2);
+  const stoneGenPerSec = (totalStonePerTick / GLOBAL_TICK_S).toFixed(2);
+  const goldSpentPerSec = (assignedWorkers.length / GLOBAL_TICK_S).toFixed(1);
   const isOutOfFunds = gold === 0 && assignedWorkers.length > 0;
 
   return (
@@ -156,6 +220,24 @@ export default function WorkersPanel() {
                 </button>
               </div>
             </div>
+
+            {/* Rarity Flash Banner */}
+            <AnimatePresence>
+              {lastHiredRarity && lastHiredRarity !== 'common' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className={`overflow-hidden text-center py-2 text-[11px] font-bold uppercase tracking-widest border-b ${
+                    lastHiredRarity === 'legendary' 
+                      ? 'bg-amber-950/50 border-amber-500/30 text-amber-400' 
+                      : 'bg-violet-950/50 border-violet-500/30 text-violet-400'
+                  }`}
+                >
+                  {lastHiredRarity === 'legendary' ? '👑 TRABALHADOR LENDÁRIO!' : '💎 TRABALHADOR RARO!'}
+                </motion.div>
+              )}
+            </AnimatePresence>
             
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
               
@@ -255,6 +337,7 @@ export default function WorkersPanel() {
               {/* CONTRATAÇÃO */}
               <div>
                 <h3 className="text-[11px] font-bold text-fantasy-text-muted uppercase tracking-widest mb-3">Taverna (Contratação)</h3>
+                <p className="text-[9px] text-fantasy-text-muted mb-2 font-mono">Raridade aleatória: 70% Comum · 22% Raro · 8% Lendário</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#0b0b0d] border border-[#ffffff]/5 rounded-lg p-3 shadow-[inset_0_1px_3px_rgba(0,0,0,0.8)] flex flex-col justify-between">
                     <div>
@@ -263,15 +346,15 @@ export default function WorkersPanel() {
                         <span className="text-[11px] font-bold text-slate-200">Lenhador</span>
                       </div>
                       <div className="text-[10px] text-fantasy-text-muted mb-3 font-mono leading-tight flex flex-col gap-0.5">
-                        <span className="text-red-400">-0.2 Gold /s</span>
-                        <span className="text-green-400">+0.2 Wood /s</span>
+                        <span className="text-green-400">Coleta madeira passivamente</span>
+                        <span className="text-slate-500">Eficiência varia por raridade</span>
                       </div>
                     </div>
                     <button 
-                      onClick={() => handleHire('lumberjack', 100)}
+                      onClick={() => handleHire('lumberjack')}
                       className="w-full bg-[#1a1811] hover:bg-[#d4af37] border border-[#d4af37]/30 hover:text-black text-[#d4af37] py-1.5 rounded text-[10px] font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-1 mt-auto"
                     >
-                      100 <Coins size={10} />
+                      {HIRE_COSTS.lumberjack} <Coins size={10} />
                     </button>
                   </div>
 
@@ -282,15 +365,15 @@ export default function WorkersPanel() {
                         <span className="text-[11px] font-bold text-slate-200">Mineiro</span>
                       </div>
                       <div className="text-[10px] text-fantasy-text-muted mb-3 font-mono leading-tight flex flex-col gap-0.5">
-                        <span className="text-red-400">-0.2 Gold /s</span>
-                        <span className="text-green-400">+0.2 Stone /s</span>
+                        <span className="text-green-400">Coleta minério passivamente</span>
+                        <span className="text-slate-500">Eficiência varia por raridade</span>
                       </div>
                     </div>
                     <button 
-                      onClick={() => handleHire('miner', 150)}
+                      onClick={() => handleHire('miner')}
                       className="w-full bg-[#1a1811] hover:bg-[#d4af37] border border-[#d4af37]/30 hover:text-black text-[#d4af37] py-1.5 rounded text-[10px] font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-1 mt-auto"
                     >
-                      150 <Coins size={10} />
+                      {HIRE_COSTS.miner} <Coins size={10} />
                     </button>
                   </div>
                 </div>
@@ -301,7 +384,7 @@ export default function WorkersPanel() {
                 <h3 className="text-[11px] font-bold text-fantasy-text-muted uppercase tracking-widest mb-3 flex justify-between items-center">
                   Sua Comunidade
                   <span className="text-[#d4af37] bg-[#1a1811] px-2 py-0.5 rounded border border-[#d4af37]/20 font-mono">
-                    {workers.length} / 4
+                    {workers.length}
                   </span>
                 </h3>
                 
@@ -312,38 +395,89 @@ export default function WorkersPanel() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {workers.map(w => (
-                      <div key={w.id} className="bg-[#0a0a0c] border border-[#ffffff]/5 rounded-lg p-3 flex flex-col gap-2 shadow-[inset_0_1px_3px_rgba(0,0,0,0.8)]">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <div className={`p-1.5 rounded ${w.type === 'lumberjack' ? 'text-green-500 bg-green-950/40 border border-green-900' : 'text-slate-400 bg-slate-800/40 border border-slate-700'}`}>
-                              {w.type === 'lumberjack' ? <TreePine size={12} /> : <Diamond size={12} />}
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-200 text-xs">{w.name}</div>
-                              <div className="text-[10px] font-mono text-fantasy-text-muted flex items-center gap-1 mt-0.5">
-                                Status: <span className={w.status === 'working' ? (isOutOfFunds ? 'text-red-400 animate-pulse' : 'text-green-400 font-bold') : 'text-slate-500'}>{isOutOfFunds ? 'Pausado' : w.status}</span>
+                    {workers.map(w => {
+                      const rarityConfig = getRarityConfig(w.rarity);
+                      const xpPercent = w.xpToNextLevel > 0 ? Math.min(100, (w.xp / w.xpToNextLevel) * 100) : 0;
+
+                      return (
+                        <div 
+                          key={w.id} 
+                          className={`bg-[#0a0a0c] border rounded-lg p-3 flex flex-col gap-2 shadow-[inset_0_1px_3px_rgba(0,0,0,0.8)] ${rarityConfig.borderColor} ${rarityConfig.glowClass}`}
+                        >
+                          {/* Top Row: Name, Type, Rarity Badge */}
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <div className={`p-1.5 rounded ${w.type === 'lumberjack' ? 'text-green-500 bg-green-950/40 border border-green-900' : 'text-slate-400 bg-slate-800/40 border border-slate-700'}`}>
+                                {w.type === 'lumberjack' ? <TreePine size={12} /> : <Diamond size={12} />}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                                  {w.name}
+                                  {/* Rarity Badge */}
+                                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${rarityConfig.badgeBg} ${rarityConfig.badgeText}`}>
+                                    {rarityConfig.icon} {rarityConfig.label}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] font-mono text-fantasy-text-muted flex items-center gap-1 mt-0.5">
+                                  Status: <span className={w.status === 'working' ? (isOutOfFunds ? 'text-red-400 animate-pulse' : 'text-green-400 font-bold') : 'text-slate-500'}>{isOutOfFunds ? 'Pausado' : w.status}</span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                        
-                        <div className="border-t border-[#ffffff]/5 pt-2">
-                          {w.assignedPlotId ? (
-                            <div className="text-[10px] font-mono text-[#d4af37] bg-[#1a1811] px-2 py-1.5 rounded border border-[#d4af37]/20 flex items-center gap-2 shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]">
-                              <Tent size={12} /> Lote {w.assignedPlotId}
+
+                          {/* Stats Row */}
+                          <div className="flex gap-3 text-[9px] font-mono border-t border-[#ffffff]/5 pt-2">
+                            <div className="flex items-center gap-1" title="Nível">
+                              <Star size={10} className="text-amber-500" />
+                              <span className="text-slate-300">Lvl <span className="font-bold text-white">{w.level}</span></span>
                             </div>
-                          ) : (
-                            <CustomSelect 
-                              value="" 
-                              options={availablePlotsOptions} 
-                              onChange={(val) => assignWorker(w.id, val)} 
-                              placeholder="Designar Lote..." 
-                            />
-                          )}
+                            <div className="flex items-center gap-1" title="Eficiência">
+                              <TrendingUp size={10} className="text-emerald-500" />
+                              <span className="text-slate-300">Eff <span className="font-bold text-emerald-400">{w.efficiency.toFixed(2)}×</span></span>
+                            </div>
+                            <div className="flex items-center gap-1" title="Velocidade">
+                              <Zap size={10} className="text-cyan-500" />
+                              <span className="text-slate-300">Spd <span className="font-bold text-cyan-400">{(w.speed / 1000).toFixed(1)}s</span></span>
+                            </div>
+                          </div>
+
+                          {/* XP Bar */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[8px] font-mono text-fantasy-text-muted w-6">XP</span>
+                            <div className="flex-1 h-1.5 bg-[#1a1811] rounded-full overflow-hidden border border-[#ffffff]/5">
+                              <motion.div 
+                                className={`h-full rounded-full ${
+                                  w.rarity === 'legendary' ? 'bg-gradient-to-r from-amber-600 to-yellow-400' :
+                                  w.rarity === 'rare' ? 'bg-gradient-to-r from-violet-600 to-purple-400' :
+                                  'bg-gradient-to-r from-sky-700 to-sky-500'
+                                }`}
+                                style={{ width: `${xpPercent}%` }}
+                                transition={{ duration: 0.5 }}
+                              />
+                            </div>
+                            <span className="text-[8px] font-mono text-fantasy-text-muted w-14 text-right">
+                              {Math.floor(w.xp)}/{w.xpToNextLevel}
+                            </span>
+                          </div>
+                          
+                          {/* Plot Assignment */}
+                          <div className="border-t border-[#ffffff]/5 pt-2">
+                            {w.assignedPlotId ? (
+                              <div className="text-[10px] font-mono text-[#d4af37] bg-[#1a1811] px-2 py-1.5 rounded border border-[#d4af37]/20 flex items-center gap-2 shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)]">
+                                <Tent size={12} /> Lote {w.assignedPlotId}
+                              </div>
+                            ) : (
+                              <CustomSelect 
+                                value="" 
+                                options={availablePlotsOptions} 
+                                onChange={(val) => assignWorker(w.id, val)} 
+                                placeholder="Designar Lote..." 
+                              />
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
